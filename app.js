@@ -38,7 +38,7 @@ function dashboard() {
     tasbeehSection.classList.add("d-none");
     updateDashboardCounts();
     console.log("Daboard");
-  }
+}
 
 // Function to show tasbeeh count
 function showTasbeeh(tasbeeh) {
@@ -81,6 +81,7 @@ function changeCounter(type) {
         else if (activeTasbeeh === "duroodEPak") duroodEPak--;
     }
     count.innerHTML = window[activeTasbeeh];
+
 }
 
 // Save tasbeeh count to Firestore and local storage
@@ -91,7 +92,7 @@ function handleSave() {
         return;
     }
 
-    // Update Firestore and local storage
+    // Update Firestore
     db.collection("tasbeeh").doc(user.uid).set({
         subhanallah,
         alhamdulillah,
@@ -101,26 +102,11 @@ function handleSave() {
     }, { merge: true })
         .then(() => {
             console.log("Tasbeeh data saved to Firestore");
-
-            // Save tasbeeh count in local storage
-            localStorage.setItem('tasbeehCounts', JSON.stringify({ subhanallah, alhamdulillah, allahHooAkber, kalmaShareef, duroodEPak }));
-            alert("Tasbeeh count saved successfully!");
         })
         .catch((error) => {
             console.error("Error saving tasbeeh data:", error);
         });
 }
-
-
-function authAction() {
-    let activeTab = document.querySelector('.nav-link.active').id;
-    if (activeTab === 'login-tab') {
-        login();
-    } else if (activeTab === 'signup-tab') {
-        signup();
-    }
-}
-
 
 
 // Signup function
@@ -139,23 +125,39 @@ function signup() {
         .then((userCredential) => {
             var user = userCredential.user;
 
-            // Save user data to Firestore
-            db.collection("tasbeeh").doc(user.uid).set({
-                name: name,
-                email: email,
-                uid: user.uid,
+            // Update user's display name
+            user.updateProfile({
+                displayName: name
             }).then(() => {
-                console.log("User data saved to Firestore");
+                // Firestore mein user ka data save karein
+                db.collection("tasbeeh").doc(user.uid).set({
+                    name: name,
+                    email: email,
+                    uid: user.uid,
+                }).then(() => {
+                    console.log("User ka data Firestore mein save ho gaya");
 
-                // Save user data in local storage
-                localStorage.setItem('user', JSON.stringify(user));
-                alert("Signup successful!");
+                    // Local storage mein user ka data save karein
+                    // localStorage.setItem('user', JSON.stringify(user));
+                    // updateUserInfo(user);
+                    // alert("Signup successful!");
+
+
+                    firebase.auth().signOut().then(() => {
+                        alert("Signup successful! Please log in to continue.");
+                    });
+
+
+
+                }).catch((error) => {
+                    console.error("Error saving user data:", error);
+                });
             }).catch((error) => {
-                console.error("Error saving user data:", error);
+                console.error("Error updating user profile:", error);
             });
         })
         .catch((error) => {
-            console.error("Error signing up:", error);
+            console.error("Signup mein error aaya:", error);
         });
 }
 
@@ -170,6 +172,10 @@ function login() {
 
             // Save user data in local storage
             localStorage.setItem('user', JSON.stringify(user));
+
+            updateUserInfo(user);
+
+
             alert("Login successful!");
 
             // Load tasbeeh counts from Firestore
@@ -178,14 +184,14 @@ function login() {
                     let data = doc.data();
                     subhanallah = data.subhanallah || 0;
                     alhamdulillah = data.alhamdulillah || 0;
+                    allahHooAkber = data.allahHooAkber || 0;
                     kalmaShareef = data.kalmaShareef || 0;
                     duroodEPak = data.duroodEPak || 0;
 
-                       // Update dashboard counts
-                       updateDashboardCounts();
+                    // Update dashboard counts
+                    updateDashboardCounts();
 
-                    // Save tasbeeh counts in local storage
-                    localStorage.setItem('tasbeehCounts', JSON.stringify({ subhanallah, alhamdulillah, kalmaShareef, duroodEPak }));
+
                 }
             }).catch((error) => {
                 console.error("Error getting tasbeeh data:", error);
@@ -196,21 +202,64 @@ function login() {
         });
 }
 
+// Logout function
+function logout() {
+    firebase.auth().signOut().then(() => {
+        localStorage.removeItem('user');
+        updateUserInfo(null);
+
+        subhanallah = 0;
+        alhamdulillah = 0;
+        allahHooAkber = 0;
+        kalmaShareef = 0;
+        duroodEPak = 0;
+
+        updateDashboardCounts();
+
+        alert("Logged out successfully!");
+
+    }).catch((error) => {
+        console.error("Error logging out:", error);
+    });
+}
+
+
+function updateUserInfo(user) {
+    if (user) {
+        document.getElementById("userName").innerText = `Name: ${user.displayName || 'N/A'}`;
+        document.getElementById("userEmail").innerText = `Email: ${user.email || 'N/A'}`;
+        document.getElementById("userInfo").classList.remove("d-none");
+        document.getElementById("authButtons").classList.add("d-none");
+    } else {
+        document.getElementById("userName").innerText = "Name: N/A";
+        document.getElementById("userEmail").innerText = "Email: N/A";
+        document.getElementById("userInfo").classList.add("d-none");
+        document.getElementById("authButtons").classList.remove("d-none");
+    }
+}
 
 
 // Load counts when page loads
-window.onload = function() {
+window.onload = function () {
     let user = JSON.parse(localStorage.getItem('user'));
     if (user) {
-        let counts = JSON.parse(localStorage.getItem('tasbeehCounts'));
-        if (counts) {
-            subhanallah = counts.subhanallah || 0;
-            alhamdulillah = counts.alhamdulillah || 0;
-            allahHooAkber = counts.allahHooAkber || 0;
-            kalmaShareef = counts.kalmaShareef || 0;
-            duroodEPak = counts.duroodEPak || 0;
+        updateUserInfo(user);
+        db.collection("tasbeeh").doc(user.uid).get().then((doc) => {
+            if (doc.exists) {
+                let data = doc.data();
+                subhanallah = data.subhanallah || 0;
+                alhamdulillah = data.alhamdulillah || 0;
+                allahHooAkber = data.allahHooAkber || 0;
+                kalmaShareef = data.kalmaShareef || 0;
+                duroodEPak = data.duroodEPak || 0;
 
-            updateDashboardCounts();
-        }
+                updateDashboardCounts();
+            }
+        }).catch((error) => {
+            console.error("Error loading tasbeeh data:", error);
+        });
+    } else {
+        updateUserInfo(null);
     }
+
 }
